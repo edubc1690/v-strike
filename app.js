@@ -4,7 +4,7 @@
 
 // --- 1. FORCE UPDATE & CACHE CONTROL ---
 // Detect version change -> Wipe Cache -> Reload
-const CURRENT_VERSION = 'v3.5.2';
+const CURRENT_VERSION = 'v3.6.0';
 if (localStorage.getItem('vstrike_version') !== CURRENT_VERSION) {
     console.log(`✨ New Version ${CURRENT_VERSION} detected. Cleaning up...`);
 
@@ -876,6 +876,65 @@ function renderReviewMode() {
     const key = `vstrike_recs_${dateKey}`;
     const data = JSON.parse(localStorage.getItem(key) || '[]');
 
+    // Show analysis section only for YESTERDAY
+    const analysisSection = document.getElementById('analysis-section');
+    const analysisContent = document.getElementById('analysis-content');
+
+    if (reviewOffset === -1 && typeof analyzeYesterday === 'function') {
+        const analysis = analyzeYesterday();
+
+        if (analysis && analysis.metrics.total > 0) {
+            analysisSection.style.display = 'block';
+
+            const { metrics, insights } = analysis;
+            let html = `
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px;">
+                    <div style="text-align: center; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                        <div style="font-size: 1.5rem; font-weight: bold; color: #10b981;">${metrics.wins}/${metrics.total}</div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">Ganadas</div>
+                    </div>
+                    <div style="text-align: center; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                        <div style="font-size: 1.5rem; font-weight: bold; color: #3b82f6;">${(metrics.winRate * 100).toFixed(0)}%</div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">Win Rate</div>
+                    </div>
+                    <div style="text-align: center; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                        <div style="font-size: 1.5rem; font-weight: bold; color: #f59e0b;">${metrics.byRisk.low.wins}/${metrics.byRisk.low.total}</div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">Seguras</div>
+                    </div>
+                </div>
+            `;
+
+            // Insights section
+            if (insights.length > 0) {
+                html += '<div style="margin-top: 15px; border-top: 1px dashed #334155; padding-top: 15px;">';
+                html += '<h4 style="font-size: 0.9rem; margin-bottom: 10px; color: #60a5fa;">💡 Sugerencias de Ajuste</h4>';
+
+                insights.forEach((insight) => {
+                    const color = insight.type === 'warning' ? '#f59e0b' : '#10b981';
+                    const actionJson = JSON.stringify(insight.action).replace(/"/g, '&quot;');
+                    html += `
+                        <div style="padding: 10px; background: rgba(0,0,0,0.3); border-left: 3px solid ${color}; border-radius: 6px; margin-bottom: 10px;">
+                            <div style="font-size: 0.85rem; margin-bottom: 5px;">${insight.icon} ${insight.message}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">→ ${insight.suggestion}</div>
+                            <button class="btn-xs" style="background: ${color}; border: none;" 
+                                onclick='applyParameterAdjustment(${actionJson})'>
+                                ✅ Aplicar Ajuste
+                            </button>
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+            }
+
+            analysisContent.innerHTML = html;
+        } else {
+            analysisSection.style.display = 'none';
+        }
+    } else {
+        analysisSection.style.display = 'none';
+    }
+
     if (data.length === 0) {
         feed.innerHTML = '<div class="empty-state-sm">Sin registros para esta fecha.</div>';
         return;
@@ -902,6 +961,24 @@ function renderReviewMode() {
             `;
         }
 
+        // Individual pick analysis (for non-parley picks)
+        let pickAnalysis = '';
+        if (item.result !== 'PENDING' && item.type !== 'parley_card') {
+            const wasCorrect = item.result === 'WIN';
+            const confidence = item.confidenceScore || 50;
+            const expectedWin = confidence > 60;
+
+            if (wasCorrect && expectedWin) {
+                pickAnalysis = '<div style="font-size:0.75rem; color:#10b981; margin-top:5px;">✓ Resultado esperado (alta confianza)</div>';
+            } else if (wasCorrect && !expectedWin) {
+                pickAnalysis = '<div style="font-size:0.75rem; color:#f59e0b; margin-top:5px;">⚠️ Ganó contra pronóstico (baja confianza)</div>';
+            } else if (!wasCorrect && expectedWin) {
+                pickAnalysis = '<div style="font-size:0.75rem; color:#ef4444; margin-top:5px;">✗ Sorpresa negativa (se esperaba ganar)</div>';
+            } else {
+                pickAnalysis = '<div style="font-size:0.75rem; color:#94a3b8; margin-top:5px;">○ Pérdida esperada (baja confianza)</div>';
+            }
+        }
+
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; margin-bottom:5px">
                 <span class="badge-type">${item.sport}</span>
@@ -909,6 +986,7 @@ function renderReviewMode() {
             </div>
             <div>${item.match}</div>
             <div style="font-weight:bold; color:var(--accent)">${item.pick} (${item.odds})</div>
+            ${pickAnalysis}
             ${actions}
         `;
 
