@@ -1,0 +1,5 @@
+# Archivos de datos históricos
+*.json
+
+# Pero trackear el README
+!README.md
