@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>V-STRIKE v3.4 (AI Enhanced)</title>
+
+    <!-- Enlace al manifiesto para ser instalable -->
+    <link rel="manifest" href="app.webmanifest">
+
+    <!-- Fuentes Premium -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Rajdhani:wght@500;700&display=swap"
+        rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="app">
+        <!-- Header Móvil -->
+        <header class="glass-header">
+            <div class="logo-area">
+                <span class="logo-icon">⚡</span>
+                <h1>V-STRIKE <span class="version">v3.5</span></h1>
+            </div>
+            <div class="user-status">
+                <div class="status-dot online"></div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard -->
+        <main class="dashboard">
+
+            <!-- Seccion de Banca (Bankroll) -->
+            <section class="bankroll-card glass-panel" id="bankroll-section">
+                <div class="card-header">
+                    <h2>Banca Total</h2>
+                    <span class="currency-toggle">USD / VES</span>
+                </div>
+                <div class="balance-display">
+                    <span class="currency-symbol">$</span>
+                    <span class="amount" id="current-balance">0.00</span>
+                </div>
+                <div class="stats-row">
+                    <div class="stat-item profit">
+                        <span class="label">Ganancia</span>
+                        <span class="value" id="total-profit">+ $0.00</span>
+                    </div>
+                </div>
+
+                <!-- Botonera de Acción Rápida -->
+                <div class="action-buttons">
+                    <button class="btn-primary" onclick="openModal('add-bet')">Registrar Apuesta</button>
+                    <button class="btn-secondary" onclick="openDailyAnalysis()">📊 Análisis Ayer</button>
+                </div>
+
+                <!-- Backup Controls (Mini) -->
+                <div style="display:flex; gap:10px; margin-top:1rem; justify-content:center; opacity:0.8">
+                    <button class="btn-xs" onclick="exportData()" title="Guardar Respaldo">💾 Guardar</button>
+                    <button class="btn-xs" onclick="document.getElementById('file-input').click()"
+                        title="Cargar Respaldo">📂 Cargar</button>
+                    <input type="file" id="file-input" style="display:none" onchange="importData(this)">
+                </div>
+            </section>
+
+
+
+            <!-- Sección de Apuestas Activas (NUEVO) -->
+            <section class="active-bets-section">
+                <h3 class="section-title">En Juego ⏳</h3>
+                <div id="active-bets-list" class="bets-list">
+                    <!-- Las jugadas activas aparecerán aquí -->
+                    <div class="empty-state-sm">No hay jugadas activas.</div>
+                </div>
+            </section>
+
+            <!-- Tasa BCV Monitor -->
+            <section class="bcv-monitor glass-panel-sm">
+                <div class="bcv-icon">🇻🇪</div>
+                <div class="bcv-info">
+                    <span class="label">Tasa BCV Oficial</span>
+                    <span class="rate" id="bcv-rate-display">...</span>
+                </div>
+                <button class="btn-icon" onclick="updateBCV()">🔄</button>
+            </section>
+
+            <!-- Seccion de Parleys Destacados en Dashboard (MOVED TO BOTTOM) -->
+            <section class="glass-panel" id="dashboard-parleys-section"
+                style="border-left: 4px solid var(--accent); display:none; margin-top:15px">
+                <h3 class="section-title">🔥 Parleys del Día</h3>
+                <div id="dashboard-parleys-list"></div>
+            </section>
+
+            <!-- Recomendaciones (Brain Output) -->
+            <section class="feed-section">
+                <h3 class="section-title">Radar de Oportunidades</h3>
+
+                <!-- NEW: Sport Filters -->
+                <div class="filter-bar"
+                    style="display:flex; gap:8px; overflow-x:auto; padding-bottom:10px; margin-bottom:10px">
+                    <button class="filter-chip active" onclick="filterFeed('all')">Todo</button>
+                    <button class="filter-chip" onclick="filterFeed('nba')">🏀 NBA</button>
+                    <button class="filter-chip" onclick="filterFeed('soccer')">⚽ Fútbol</button>
+                    <button class="filter-chip" onclick="filterFeed('nhl')">❄️ NHL</button>
+                    <button class="filter-chip" onclick="filterFeed('mlb')">⚾ MLB</button>
+                </div>
+
+                <div id="recommendations-feed" class="scroll-feed">
+                    <!-- Aquí se inyectarán las tarjetas de parleys -->
+                    <div class="empty-state">
+                        <p>Escaneando mercados...</p>
+                    </div>
+                </div>
+            </section>
+            <!-- Sección de Resultados (NUEVO) -->
+            <section id="results-section" class="glass-panel hidden">
+                <h3 class="section-title">Análisis de Ayer 📉</h3>
+                <div class="date-selector-header">
+                    <button class="btn-mini-nav" onclick="changeReviewDate(-1)">◀</button>
+                    <span id="review-date-display" style="font-weight:700; color:var(--text-main)">...</span>
+                    <button class="btn-mini-nav" onclick="changeReviewDate(1)">▶</button>
+                </div>
+
+                <div id="results-feed" class="scroll-feed">
+                    <!-- Cards de resultados inyectadas aqui -->
+                </div>
+            </section>
+
+            <!-- Sección de Ajustes (NUEVO) -->
+            <section id="settings-view" class="glass-panel hidden">
+                <h3 class="section-title">⚙️ Configuración</h3>
+
+                <div class="form-group">
+                    <div style="display:flex; justify-content:space-between; align-items:center">
+                        <label>🔑 API Keys (Lista)</label>
+                        <a href="https://the-odds-api.com/#get-access" target="_blank"
+                            style="font-size:0.75rem; color:var(--accent); text-decoration:none">Obtener GRATIS ↗</a>
+                    </div>
+                    <textarea id="setting-api-keys" rows="5" placeholder="Pega tus API Keys aquí, una por línea..."
+                        style="font-family:monospace; font-size:0.8rem; width:100%; border-radius:8px; background:rgba(0,0,0,0.3); border:1px solid #334155; color:white; padding:10px;"></textarea>
+                    <small style="color:var(--text-muted)">El sistema rotará automáticamente cuando una llave se agote
+                        (Error 429).</small>
+                </div>
+
+                <div class="form-group" style="margin-top:1rem">
+                    <label>🇻🇪 Tasa BCV (Manual)</label>
+                    <input type="number" id="setting-bcv-rate" placeholder="Ej: 36.50" step="0.01">
+                    <small style="color:var(--text-muted)">Define el precio real del dólar hoy.</small>
+                </div>
+
+                <button class="btn-primary" onclick="saveSettings()" style="margin-top:1.5rem">💾 Guardar
+                    Cambios</button>
+
+                <button class="btn-secondary" onclick="copyHistoryToClipboard()"
+                    style="margin-top:10px; width:100%; border:1px dashed #555">📋 Copiar Historial (Backup)</button>
+
+                <div style="margin-top:2rem; padding-top:1rem; border-top:1px solid rgba(255,255,255,0.1)">
+                    <p style="font-size:0.8rem; color:var(--text-muted); text-align:center">V-STRIKE v3.4 <br> Build by
+                        Owner</p>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Bottom Navigation (Estilo App Móvil) -->
+        <nav class="bottom-nav glass-nav">
+            <button class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard">
+                <span class="icon">📊</span>
+                <span class="label">Panel</span>
+            </button>
+            <button class="nav-item" onclick="switchTab('scanner')" id="nav-scanner">
+                <span class="icon">📡</span>
+                <span class="label">Radar</span>
+            </button>
+            <button class="nav-item" onclick="switchTab('results')" id="nav-results">
+                <span class="icon">📝</span>
+                <span class="label">Resultados</span>
+            </button>
+            <button class="nav-item" onclick="switchTab('settings')" id="nav-settings">
+                <span class="icon">⚙️</span>
+                <span class="label">Ajustes</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <!-- Modales / Overlays -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <!-- Modal Registrar Apuesta -->
+        <div class="modal glass-modal" id="modal-add-bet">
+            <div class="modal-header">
+                <h3>Nueva Operación</h3>
+                <button class="close-btn" onclick="closeModals()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Monto Apostado ($)</label>
+                    <input type="number" id="bet-amount" placeholder="Ej: 5.00" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label>Cuota Total (Odds)</label>
+                    <input type="number" id="bet-odds" placeholder="Ej: +150 o 2.50" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Descripción / Parley</label>
+                    <textarea id="bet-desc" rows="3" placeholder="Lakers Win + Yankees Over 8.5..."></textarea>
+                </div>
+                <button class="btn-full-width" onclick="submitBet()">Confirmar Jugada</button>
+            </div>
+        </div>
+
+        <!-- Modal Análisis Diario -->
+        <div class="modal glass-modal" id="modal-analysis" style="display:none">
+            <div class="modal-header">
+                <h3>Resumen de Ayer</h3>
+                <button class="close-btn" onclick="closeModals()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="analysis-summary" class="stats-grid">
+                    <!-- Stats injected here -->
+                </div>
+                <h4 style="margin: 1rem 0 0.5rem; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:5px">
+                    Detalle de Jugadas</h4>
+                <div id="analysis-list" class="mini-list">
+                    <!-- List injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js" type="module"></script>
+</body>
+
+</html>
