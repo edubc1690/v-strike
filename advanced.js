@@ -183,10 +183,67 @@ function getTeamAdjustment(teamName, isFavorite) {
         reasons.push(injuries.reason);
     }
 
+    // Check back-to-back fatigue
+    const fatigue = checkBackToBack(teamName);
+    if (fatigue.penalty !== 0) {
+        totalAdjustment += fatigue.penalty;
+        reasons.push(fatigue.reason);
+    }
+
     return {
         adjustment: totalAdjustment,
         reason: reasons.length > 0 ? reasons.join(' | ') : null
     };
+}
+
+// 🏃 BACK-TO-BACK DETECTION
+// Teams playing on consecutive days have ~10% lower win rate
+let RECENT_GAMES = JSON.parse(localStorage.getItem('vstrike_recent_games') || '{}');
+
+function checkBackToBack(teamName) {
+    const today = new Date().toLocaleDateString('en-CA');
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = yesterday.toLocaleDateString('en-CA');
+
+    // Check if team played yesterday
+    const playedYesterday = RECENT_GAMES[yesterdayKey]?.includes(teamName);
+
+    if (playedYesterday) {
+        return {
+            penalty: -10,
+            reason: `🏃 Back-to-Back: Jugó ayer, fatiga -10`
+        };
+    }
+
+    return { penalty: 0, reason: null };
+}
+
+// Track games when processing odds
+function trackGameForBackToBack(homeTeam, awayTeam) {
+    const today = new Date().toLocaleDateString('en-CA');
+
+    if (!RECENT_GAMES[today]) {
+        RECENT_GAMES[today] = [];
+    }
+
+    if (!RECENT_GAMES[today].includes(homeTeam)) {
+        RECENT_GAMES[today].push(homeTeam);
+    }
+    if (!RECENT_GAMES[today].includes(awayTeam)) {
+        RECENT_GAMES[today].push(awayTeam);
+    }
+
+    // Clean old entries (keep only last 3 days)
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const cutoff = threeDaysAgo.toLocaleDateString('en-CA');
+
+    Object.keys(RECENT_GAMES).forEach(key => {
+        if (key < cutoff) delete RECENT_GAMES[key];
+    });
+
+    localStorage.setItem('vstrike_recent_games', JSON.stringify(RECENT_GAMES));
 }
 
 // 📊 AUTO-FETCH YESTERDAY'S RESULTS
@@ -345,10 +402,14 @@ window.TRAP_TEAMS = TRAP_TEAMS;
 window.VALUE_TEAMS = VALUE_TEAMS;
 window.STAR_PLAYERS = STAR_PLAYERS;
 window.CURRENT_INJURIES = CURRENT_INJURIES;
+window.RECENT_GAMES = RECENT_GAMES;
 window.getTeamAdjustment = getTeamAdjustment;
 window.checkTeamInjuries = checkTeamInjuries;
+window.checkBackToBack = checkBackToBack;
+window.trackGameForBackToBack = trackGameForBackToBack;
 window.fetchInjuries = fetchInjuries;
 window.updateInjury = updateInjury;
 window.fetchYesterdayScores = fetchYesterdayScores;
 window.calculateOptimalParleySize = calculateOptimalParleySize;
+
 
