@@ -39,25 +39,154 @@ const VALUE_TEAMS = {
     'Dallas Stars': { bonus: 8, reason: '57.4% win rate, buenos en OT' }
 };
 
-// 🔍 GET TEAM ADJUSTMENT
+// ⭐ JUGADORES ESTRELLA POR EQUIPO (si están out = penalización grave)
+const STAR_PLAYERS = {
+    // NBA
+    'Los Angeles Lakers': ['LeBron James', 'Anthony Davis'],
+    'Milwaukee Bucks': ['Giannis Antetokounmpo', 'Damian Lillard'],
+    'Boston Celtics': ['Jayson Tatum', 'Jaylen Brown'],
+    'Denver Nuggets': ['Nikola Jokic', 'Jamal Murray'],
+    'Phoenix Suns': ['Kevin Durant', 'Devin Booker'],
+    'Philadelphia 76ers': ['Joel Embiid', 'Tyrese Maxey'],
+    'Golden State Warriors': ['Stephen Curry', 'Draymond Green'],
+    'Dallas Mavericks': ['Luka Doncic', 'Kyrie Irving'],
+    'Miami Heat': ['Jimmy Butler', 'Bam Adebayo'],
+    'Cleveland Cavaliers': ['Donovan Mitchell', 'Jarrett Allen'],
+
+    // NHL
+    'Edmonton Oilers': ['Connor McDavid', 'Leon Draisaitl'],
+    'Colorado Avalanche': ['Nathan MacKinnon', 'Cale Makar'],
+    'Tampa Bay Lightning': ['Nikita Kucherov', 'Steven Stamkos'],
+    'Toronto Maple Leafs': ['Auston Matthews', 'Mitch Marner'],
+
+    // MLB
+    'Los Angeles Dodgers': ['Shohei Ohtani', 'Mookie Betts'],
+    'New York Yankees': ['Aaron Judge', 'Juan Soto'],
+    'Philadelphia Phillies': ['Bryce Harper', 'Trea Turner'],
+    'Atlanta Braves': ['Ronald Acuña Jr.', 'Matt Olson']
+};
+
+// 🏥 LESIONES CONOCIDAS (actualizar manualmente o vía API)
+let CURRENT_INJURIES = JSON.parse(localStorage.getItem('vstrike_injuries') || '{}');
+
+// Penalizaciones por lesión de estrella
+const INJURY_PENALTY = {
+    'OUT': -25,      // Confirmado fuera
+    'DOUBTFUL': -15, // Probablemente no juega
+    'QUESTIONABLE': -8, // 50/50
+    'PROBABLE': -3   // Probablemente juega
+};
+
+// 🔍 CHECK INJURIES FOR TEAM
+function checkTeamInjuries(teamName) {
+    const stars = STAR_PLAYERS[teamName] || [];
+    let totalPenalty = 0;
+    let injuredPlayers = [];
+
+    stars.forEach(player => {
+        const injuryStatus = CURRENT_INJURIES[player];
+        if (injuryStatus && INJURY_PENALTY[injuryStatus]) {
+            totalPenalty += INJURY_PENALTY[injuryStatus];
+            injuredPlayers.push(`${player} (${injuryStatus})`);
+        }
+    });
+
+    return {
+        penalty: totalPenalty,
+        players: injuredPlayers,
+        reason: injuredPlayers.length > 0
+            ? `🏥 Lesiones: ${injuredPlayers.join(', ')}`
+            : null
+    };
+}
+
+// 📡 FETCH INJURIES FROM API (if enabled)
+async function fetchInjuries() {
+    const config = window.DEFAULT_CONFIG?.INJURIES_API;
+
+    if (!config || !config.enabled || !config.keys || config.keys.length === 0) {
+        console.log('ℹ️ API de lesiones no configurada - usando datos manuales');
+        return null;
+    }
+
+    console.log('🏥 Buscando lesiones actuales...');
+
+    try {
+        // API-Sports endpoint (ejemplo para NBA)
+        if (config.provider === 'apisports') {
+            const key = config.keys[0];
+            const response = await fetch('https://v2.nba.api-sports.io/players/injuries', {
+                headers: {
+                    'x-apisports-key': key
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+
+                // Parse injuries into our format
+                const injuries = {};
+                data.response?.forEach(injury => {
+                    if (injury.player?.name) {
+                        injuries[injury.player.name] = injury.status?.toUpperCase() || 'OUT';
+                    }
+                });
+
+                // Cache for 6 hours
+                CURRENT_INJURIES = injuries;
+                localStorage.setItem('vstrike_injuries', JSON.stringify(injuries));
+                localStorage.setItem('vstrike_injuries_updated', Date.now().toString());
+
+                console.log(`✅ ${Object.keys(injuries).length} lesiones actualizadas`);
+                return injuries;
+            }
+        }
+    } catch (err) {
+        console.warn('⚠️ Error fetching injuries:', err);
+    }
+
+    return null;
+}
+
+// 📝 MANUAL INJURY UPDATE (for UI)
+function updateInjury(playerName, status) {
+    if (!status || status === 'ACTIVE') {
+        delete CURRENT_INJURIES[playerName];
+    } else {
+        CURRENT_INJURIES[playerName] = status;
+    }
+    localStorage.setItem('vstrike_injuries', JSON.stringify(CURRENT_INJURIES));
+    console.log(`🏥 ${playerName} actualizado a ${status || 'ACTIVE'}`);
+}
+
+// 🔍 GET TEAM ADJUSTMENT (now includes injuries)
 function getTeamAdjustment(teamName, isFavorite) {
-    // Si es favorito y está en lista trampa, penalizar
+    let totalAdjustment = 0;
+    let reasons = [];
+
+    // Check trap teams
     if (isFavorite && TRAP_TEAMS[teamName]) {
-        return {
-            adjustment: TRAP_TEAMS[teamName].penalty,
-            reason: `⚠️ Trampa: ${TRAP_TEAMS[teamName].reason}`
-        };
+        totalAdjustment += TRAP_TEAMS[teamName].penalty;
+        reasons.push(`⚠️ Trampa: ${TRAP_TEAMS[teamName].reason}`);
     }
 
-    // Si está en lista value, bonificar
+    // Check value teams
     if (VALUE_TEAMS[teamName]) {
-        return {
-            adjustment: VALUE_TEAMS[teamName].bonus,
-            reason: `✅ Value: ${VALUE_TEAMS[teamName].reason}`
-        };
+        totalAdjustment += VALUE_TEAMS[teamName].bonus;
+        reasons.push(`✅ Value: ${VALUE_TEAMS[teamName].reason}`);
     }
 
-    return { adjustment: 0, reason: null };
+    // Check injuries (CRITICAL)
+    const injuries = checkTeamInjuries(teamName);
+    if (injuries.penalty !== 0) {
+        totalAdjustment += injuries.penalty;
+        reasons.push(injuries.reason);
+    }
+
+    return {
+        adjustment: totalAdjustment,
+        reason: reasons.length > 0 ? reasons.join(' | ') : null
+    };
 }
 
 // 📊 AUTO-FETCH YESTERDAY'S RESULTS
@@ -196,6 +325,13 @@ function calculateOptimalParleySize(picks) {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
+    // Fetch injuries first (critical for recommendations)
+    setTimeout(() => {
+        if (typeof fetchInjuries === 'function') {
+            fetchInjuries();
+        }
+    }, 1000);
+
     // Auto-fetch scores after 3 seconds (let other things load first)
     setTimeout(() => {
         if (typeof fetchYesterdayScores === 'function') {
@@ -207,6 +343,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // Export for use in main app
 window.TRAP_TEAMS = TRAP_TEAMS;
 window.VALUE_TEAMS = VALUE_TEAMS;
+window.STAR_PLAYERS = STAR_PLAYERS;
+window.CURRENT_INJURIES = CURRENT_INJURIES;
 window.getTeamAdjustment = getTeamAdjustment;
+window.checkTeamInjuries = checkTeamInjuries;
+window.fetchInjuries = fetchInjuries;
+window.updateInjury = updateInjury;
 window.fetchYesterdayScores = fetchYesterdayScores;
 window.calculateOptimalParleySize = calculateOptimalParleySize;
+
