@@ -4,7 +4,7 @@
 
 // --- 1. FORCE UPDATE & CACHE CONTROL ---
 // Detect version change -> Wipe Cache -> Reload
-const CURRENT_VERSION = 'v3.8.0';
+const CURRENT_VERSION = 'v3.9.0';
 if (localStorage.getItem('vstrike_version') !== CURRENT_VERSION) {
     console.log(`✨ New Version ${CURRENT_VERSION} detected. Cleaning up...`);
 
@@ -659,6 +659,19 @@ function calculateConfidence(pick) {
     // Factor 10: Underdogs at home are more dangerous
     if (pick.odds > 0 && pick.isHome) score += 5; // Slight boost for home underdogs
 
+    // --- TRAP TEAMS & VALUE TEAMS ---
+
+    // Factor 11: Apply team-specific adjustments from advanced.js
+    if (typeof getTeamAdjustment === 'function' && pick.pick) {
+        const teamName = pick.pick.replace(' ML', '').replace(/\s*[+-][\d.]+/, '').trim();
+        const isFavorite = pick.odds && pick.odds < 0;
+        const teamAdj = getTeamAdjustment(teamName, isFavorite);
+        if (teamAdj.adjustment !== 0) {
+            score += teamAdj.adjustment;
+            pick.teamNote = teamAdj.reason; // Add note for display
+        }
+    }
+
     return Math.min(Math.max(score, 10), 100); // Min 10% to avoid $0 stakes
 }
 
@@ -764,7 +777,7 @@ async function checkAndGenerateDaily() {
         return selected;
     };
 
-    // 1. 💎 PARLEY SEGURO (Smart Value & Diversity)
+    // 1. 💎 PARLEY SEGURO (Smart Value & Diversity - DYNAMIC SIZE)
     // Add confidence scores to all picks and sort by confidence
     allRecs.forEach(r => {
         r.confidenceScore = calculateConfidence(r);
@@ -776,7 +789,12 @@ async function checkAndGenerateDaily() {
         .filter(c => c.risk === 'low')
         .sort((a, b) => b.confidenceScore - a.confidenceScore);
 
-    const safeLegs = getDiverseLegs(safePool, 3);
+    // Calculate optimal parley size dynamically based on pick quality
+    const optimalSize = typeof calculateOptimalParleySize === 'function'
+        ? calculateOptimalParleySize(safePool)
+        : { legs: 3, reason: 'Estándar' };
+
+    const safeLegs = getDiverseLegs(safePool, optimalSize.legs);
 
     if (safeLegs.length >= 2) {
         const parleyOdds = calculateParleyOdds(safeLegs);
@@ -789,9 +807,9 @@ async function checkAndGenerateDaily() {
             odds: parleyOdds,
             legs: safeLegs,
             sport: 'Mix',
-            match: `${safeLegs.length} Deportes`,
+            match: `${safeLegs.length} Picks (${optimalSize.reason})`,
             pick: 'Combinada de Valor',
-            analysis: 'Diversificación estratégica con validación de líneas Pinnacle.',
+            analysis: `Tamaño dinámico: ${optimalSize.reason}. Diversificación con líneas Pinnacle.`,
             result: 'PENDING'
         });
     }
