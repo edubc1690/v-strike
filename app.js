@@ -4,7 +4,7 @@
 
 // --- 1. FORCE UPDATE & CACHE CONTROL ---
 // Detect version change -> Wipe Cache -> Reload
-const CURRENT_VERSION = 'v3.6.0';
+const CURRENT_VERSION = 'v3.7.0';
 if (localStorage.getItem('vstrike_version') !== CURRENT_VERSION) {
     console.log(`✨ New Version ${CURRENT_VERSION} detected. Cleaning up...`);
 
@@ -314,13 +314,26 @@ function processOddsToRecommendations(events, sportName) {
         const h2h = bookmaker.markets.find(m => m.key === 'h2h');
         const spread = bookmaker.markets.find(m => m.key === 'spreads');
 
-        // Logic 1: Favorites (Safe/Parley)
+        // Logic 1: Favorites (Safe/Parley) - WITH LEAGUE-SPECIFIC LIMITS
         if (h2h) {
-            const fav = h2h.outcomes.find(o => o.price < -130 && o.price > -900);
+            // Dynamic odds limits based on sport
+            let maxFavOdds = -130; // Minimum favorite odds
+            let minFavOdds = -900; // Default max (heavy favorites)
+
+            // League-specific adjustments based on historical analysis
+            if (sportName.includes('NHL')) {
+                minFavOdds = -250; // NHL favorites less reliable
+            } else if (sportName.includes('NBA')) {
+                minFavOdds = -300; // NBA reasonably predictable
+            } else if (sportName.includes('⚽') || sportName.includes('EPL') || sportName.includes('LaLiga')) {
+                minFavOdds = -200; // Soccer has many draws/upsets
+            }
+
+            const fav = h2h.outcomes.find(o => o.price < maxFavOdds && o.price > minFavOdds);
             if (fav) {
                 const opponent = h2h.outcomes.find(o => o.name !== fav.name).name;
 
-                // SMART VALUE CHECK
+                // SMART VALUE CHECK (Enhanced)
                 let isValue = false;
                 let sharpPrice = 0;
 
@@ -330,9 +343,11 @@ function processOddsToRecommendations(events, sportName) {
                         const sharpOutcome = tick.outcomes.find(o => o.name === fav.name);
                         if (sharpOutcome) {
                             sharpPrice = sharpOutcome.price;
-                            // If our bookie pays BETTER than Pinnacle (e.g. -130 vs -150), it is HUGE value
-                            // Note: American odds reverse logic. -130 > -150 in value (returns more)
-                            if (fav.price > sharpPrice + 10) isValue = true;
+                            // Value detection with optimal range (5-25 points better)
+                            const diff = fav.price - sharpPrice;
+                            if (diff >= 5 && diff <= 25) {
+                                isValue = true;
+                            }
                         }
                     }
                 }
@@ -357,26 +372,42 @@ function processOddsToRecommendations(events, sportName) {
                 });
             }
 
-            // Logic 2: High Risk (PARLEY SORPRESA)
-            // Expanded range for "Surprise" potential
-            const dog = h2h.outcomes.find(o => o.price > +125 && o.price < +550);
+            // Logic 2: High Risk (PARLEY SORPRESA) - OPTIMIZED
+            // Prioritize home underdogs with reasonable odds
+            const dog = h2h.outcomes.find(o => o.price > +125 && o.price < +350);
             if (dog) {
                 const opponent = h2h.outcomes.find(o => o.name !== dog.name).name;
                 const isHomeTeam = (dog.name === event.home_team);
-                recommendations.push({
-                    id: event.id + '_hr',
-                    type: 'high_risk',
-                    sport: sportName,
-                    match: `${event.home_team} vs ${event.away_team}`,
-                    time: eventTime,
-                    pick: `${dog.name} ML`,
-                    odds: dog.price,
-                    risk: 'high',
-                    isValue: false,
-                    isHome: isHomeTeam,
-                    sharpDiff: 0,
-                    analysis: generateAnalysis('high_risk', dog.price, dog.name, opponent)
-                });
+
+                // Check if underdog has value vs Pinnacle
+                let dogHasValue = false;
+                if (pinnacle) {
+                    const tick = pinnacle.markets.find(m => m.key === 'h2h');
+                    if (tick) {
+                        const sharpDog = tick.outcomes.find(o => o.name === dog.name);
+                        if (sharpDog && dog.price > sharpDog.price + 10) {
+                            dogHasValue = true;
+                        }
+                    }
+                }
+
+                // Only include if: home underdog OR has value
+                if (isHomeTeam || dogHasValue) {
+                    recommendations.push({
+                        id: event.id + '_hr',
+                        type: 'high_risk',
+                        sport: sportName,
+                        match: `${event.home_team} vs ${event.away_team}`,
+                        time: eventTime,
+                        pick: `${dog.name} ML`,
+                        odds: dog.price,
+                        risk: 'high',
+                        isValue: dogHasValue,
+                        isHome: isHomeTeam,
+                        sharpDiff: 0,
+                        analysis: generateAnalysis('high_risk', dog.price, dog.name, opponent)
+                    });
+                }
             }
         }
 
@@ -443,37 +474,74 @@ function calculatePayout(amount, americanOdds) {
     }
 }
 
-// 🧠 CONFIDENCE SCORE (0-100) based on multiple factors
+// 🧠 CONFIDENCE SCORE v2.0 (0-100) based on multiple real-world factors
 function calculateConfidence(pick) {
     let score = 50; // Base score
 
-    // Factor 1: Edge vs Pinnacle (+0 to +20)
+    // --- VALUE FACTORS ---
+
+    // Factor 1: Edge vs Pinnacle (+0 to +15, with penalty for suspicious lines)
     if (pick.isValue && pick.sharpDiff > 0) {
-        score += Math.min(pick.sharpDiff, 20);
+        if (pick.sharpDiff >= 5 && pick.sharpDiff <= 25) {
+            score += Math.min(pick.sharpDiff, 15); // Optimal value range
+        } else if (pick.sharpDiff > 30) {
+            score -= 10; // Suspicious - possible line error or trap
+        }
     }
 
     // Factor 2: Favorable odds range for favorites (+5 to +15)
     if (pick.odds < -130 && pick.odds > -200) score += 15; // Sweet spot
     else if (pick.odds < -200 && pick.odds > -300) score += 10;
-    else if (pick.odds < -300) score += 5; // Too heavy favorite
+    else if (pick.odds < -300 && pick.odds > -400) score += 3; // Risky heavy favorite
+    else if (pick.odds <= -400) score -= 5; // Too heavy - bad value
 
-    // Factor 3: Home advantage (+8) - Aumentado tras análisis del 2-Feb-2026
+    // Factor 3: Home advantage (+8)
     if (pick.isHome) score += 8;
 
-    // Factor 4: PENALTY for underdogs (positive odds = higher risk = lower confidence)
+    // --- UNDERDOG PENALTIES ---
+
+    // Factor 4: PENALTY for underdogs (graduated by risk)
     if (pick.odds > 0 && pick.odds <= +150) score -= 10; // Light underdog
-    else if (pick.odds > +150 && pick.odds <= +250) score -= 15; // Moderate underdog (reducido de -20)
-    else if (pick.odds > +250 && pick.odds <= +350) score -= 30; // Risky underdog
-    else if (pick.odds > +350) score -= 40; // Extreme longshot
+    else if (pick.odds > +150 && pick.odds <= +250) score -= 15; // Moderate underdog
+    else if (pick.odds > +250 && pick.odds <= +350) score -= 25; // Risky underdog
+    else if (pick.odds > +350 && pick.odds <= +500) score -= 35; // High risk
+    else if (pick.odds > +500) score -= 50; // Extreme longshot
 
-    // Factor 5: PENALTY for high-risk type (-15)
+    // --- LEAGUE-SPECIFIC ADJUSTMENTS ---
+
+    // Factor 5: NHL favorites underperform (historical data)
+    if (pick.sport && pick.sport.includes('NHL') && pick.odds < -200) {
+        score -= 8; // NHL favorites are less reliable
+    }
+
+    // Factor 6: Soccer draws are common - penalize heavy favorites
+    if (pick.sport && (pick.sport.includes('EPL') || pick.sport.includes('LaLiga') || pick.sport.includes('Bundesliga') || pick.sport.includes('SerieA'))) {
+        if (pick.odds < -200) score -= 5; // Heavy favorites less reliable in soccer
+    }
+
+    // --- TEMPORAL FACTORS ---
+
+    // Factor 7: Day of week impact
+    const dayOfWeek = new Date().getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+        score -= 3; // Weekends have more upsets
+    } else if (dayOfWeek === 1 || dayOfWeek === 2) {
+        score += 2; // Monday/Tuesday fewer games, more predictable
+    }
+
+    // --- RISK TYPE FACTORS ---
+
+    // Factor 8: Risk type adjustments
     if (pick.risk === 'high') score -= 15;
+    if (pick.risk === 'low') score += 10;
 
-    // Factor 6: Bonus for mid-risk spreads (+3)
+    // Factor 9: Bonus for mid-risk spreads
     if (pick.type === 'straight' && pick.risk === 'mid') score += 3;
 
-    // Factor 7: Bonus for low-risk parley legs (+10)
-    if (pick.risk === 'low') score += 10;
+    // --- UNDERDOG HOME BONUS ---
+
+    // Factor 10: Underdogs at home are more dangerous
+    if (pick.odds > 0 && pick.isHome) score += 5; // Slight boost for home underdogs
 
     return Math.min(Math.max(score, 10), 100); // Min 10% to avoid $0 stakes
 }
