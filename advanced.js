@@ -53,6 +53,150 @@ function getStarPlayerImpact(playerName, sport) {
     return HISTORICAL_DATA.star_player_impact[sport][playerName];
 }
 
+// ================================================
+// 🎯 MINIMUM CONFIDENCE FILTER
+// Only show picks with confidence >= this threshold
+// ================================================
+const MIN_CONFIDENCE_THRESHOLD = 60;
+
+function meetsConfidenceThreshold(confidence) {
+    return confidence >= MIN_CONFIDENCE_THRESHOLD;
+}
+
+// ================================================
+// 📈 RECENT FORM / LAST 10 GAMES TRENDS
+// ================================================
+let TEAM_RECENT_FORM = JSON.parse(localStorage.getItem('vstrike_team_form') || '{}');
+
+// Track game result for trend analysis
+function trackGameResult(teamName, won, atHome) {
+    if (!TEAM_RECENT_FORM[teamName]) {
+        TEAM_RECENT_FORM[teamName] = { results: [], homeResults: [], awayResults: [] };
+    }
+
+    const form = TEAM_RECENT_FORM[teamName];
+
+    // Add to general results (keep last 10)
+    form.results.push(won ? 'W' : 'L');
+    if (form.results.length > 10) form.results.shift();
+
+    // Add to home/away specific
+    if (atHome) {
+        form.homeResults.push(won ? 'W' : 'L');
+        if (form.homeResults.length > 10) form.homeResults.shift();
+    } else {
+        form.awayResults.push(won ? 'W' : 'L');
+        if (form.awayResults.length > 10) form.awayResults.shift();
+    }
+
+    localStorage.setItem('vstrike_team_form', JSON.stringify(TEAM_RECENT_FORM));
+}
+
+// Calculate team's recent form bonus/penalty
+function getRecentFormAdjustment(teamName, isHome) {
+    const form = TEAM_RECENT_FORM[teamName];
+    if (!form || form.results.length < 3) return { adjustment: 0, reason: null };
+
+    const wins = form.results.filter(r => r === 'W').length;
+    const winRate = wins / form.results.length;
+
+    // Hot streak (>70% wins in last 10)
+    if (winRate >= 0.7) {
+        return {
+            adjustment: 8,
+            reason: `🔥 Hot: ${wins}/${form.results.length} últimos juegos`
+        };
+    }
+
+    // Cold streak (<30% wins)
+    if (winRate <= 0.3) {
+        return {
+            adjustment: -10,
+            reason: `❄️ Cold: ${wins}/${form.results.length} últimos juegos`
+        };
+    }
+
+    // Check home/away specific form if applicable
+    if (isHome && form.homeResults.length >= 3) {
+        const homeWins = form.homeResults.filter(r => r === 'W').length;
+        const homeRate = homeWins / form.homeResults.length;
+        if (homeRate >= 0.8) {
+            return {
+                adjustment: 5,
+                reason: `🏠 Dominante en casa: ${homeWins}/${form.homeResults.length}`
+            };
+        }
+    }
+
+    return { adjustment: 0, reason: null };
+}
+
+// ================================================
+// 📊 LINE MOVEMENT TRACKING
+// ================================================
+let LINE_HISTORY = JSON.parse(localStorage.getItem('vstrike_line_history') || '{}');
+
+// Record opening line for later comparison
+function recordOpeningLine(eventId, teamName, odds, timestamp) {
+    if (!LINE_HISTORY[eventId]) {
+        LINE_HISTORY[eventId] = {
+            team: teamName,
+            opening: odds,
+            openTime: timestamp || Date.now(),
+            movements: []
+        };
+        localStorage.setItem('vstrike_line_history', JSON.stringify(LINE_HISTORY));
+    }
+}
+
+// Check current line vs opening for steam move detection
+function checkLineMovement(eventId, teamName, currentOdds) {
+    const history = LINE_HISTORY[eventId];
+    if (!history || history.team !== teamName) return { adjustment: 0, reason: null };
+
+    const openingOdds = history.opening;
+    const movement = openingOdds - currentOdds; // Positive = line moved in favor
+
+    // Record the movement
+    history.movements.push({
+        odds: currentOdds,
+        time: Date.now()
+    });
+    localStorage.setItem('vstrike_line_history', JSON.stringify(LINE_HISTORY));
+
+    // Steam move: Line moved 1.5+ points in favor (e.g., -150 to -165)
+    if (movement >= 15) { // 15 = 1.5 points (odds are in cents)
+        return {
+            adjustment: 7,
+            reason: `📈 Steam: Línea mejoró ${Math.abs(movement) / 10} pts`,
+            isSteam: true
+        };
+    }
+
+    // Reverse line movement: Line moved against but we're still betting
+    if (movement <= -15) {
+        return {
+            adjustment: -5,
+            reason: `📉 RLM: Línea empeoró ${Math.abs(movement) / 10} pts`,
+            isRLM: true
+        };
+    }
+
+    return { adjustment: 0, reason: null };
+}
+
+// Clean old line history (games older than 2 days)
+function cleanLineHistory() {
+    const twoDaysAgo = Date.now() - (48 * 60 * 60 * 1000);
+
+    Object.keys(LINE_HISTORY).forEach(key => {
+        if (LINE_HISTORY[key].openTime < twoDaysAgo) {
+            delete LINE_HISTORY[key];
+        }
+    });
+
+    localStorage.setItem('vstrike_line_history', JSON.stringify(LINE_HISTORY));
+}
 
 // 🚫 EQUIPOS TRAMPA (evitar como favoritos - históricamente no cubren)
 const TRAP_TEAMS = {
@@ -239,6 +383,13 @@ function getTeamAdjustment(teamName, isFavorite) {
     if (fatigue.penalty !== 0) {
         totalAdjustment += fatigue.penalty;
         reasons.push(fatigue.reason);
+    }
+
+    // Check recent form / hot-cold streaks
+    const recentForm = getRecentFormAdjustment(teamName, !isFavorite); // isHome approximation
+    if (recentForm.adjustment !== 0) {
+        totalAdjustment += recentForm.adjustment;
+        reasons.push(recentForm.reason);
     }
 
     return {
@@ -455,6 +606,9 @@ window.STAR_PLAYERS = STAR_PLAYERS;
 window.CURRENT_INJURIES = CURRENT_INJURIES;
 window.RECENT_GAMES = RECENT_GAMES;
 window.HISTORICAL_DATA = HISTORICAL_DATA;
+window.TEAM_RECENT_FORM = TEAM_RECENT_FORM;
+window.LINE_HISTORY = LINE_HISTORY;
+window.MIN_CONFIDENCE_THRESHOLD = MIN_CONFIDENCE_THRESHOLD;
 window.getTeamAdjustment = getTeamAdjustment;
 window.checkTeamInjuries = checkTeamInjuries;
 window.checkBackToBack = checkBackToBack;
@@ -467,9 +621,19 @@ window.loadHistoricalData = loadHistoricalData;
 window.checkDivisionalMatchup = checkDivisionalMatchup;
 window.getTeamHistoricalStats = getTeamHistoricalStats;
 window.getStarPlayerImpact = getStarPlayerImpact;
+window.meetsConfidenceThreshold = meetsConfidenceThreshold;
+window.trackGameResult = trackGameResult;
+window.getRecentFormAdjustment = getRecentFormAdjustment;
+window.recordOpeningLine = recordOpeningLine;
+window.checkLineMovement = checkLineMovement;
+window.cleanLineHistory = cleanLineHistory;
 
 // Auto-load historical data
 loadHistoricalData();
+
+// Clean old line history on load
+cleanLineHistory();
+
 
 
 
