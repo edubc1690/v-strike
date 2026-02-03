@@ -126,6 +126,45 @@ const KeyManager = {
 
 KeyManager.checkMonthlyReset();
 
+// 🚨 API EXHAUSTED ALERT
+function showApiExhaustedAlert() {
+    // Only show once per session
+    if (document.getElementById('api-exhausted-alert')) return;
+
+    const alert = document.createElement('div');
+    alert.id = 'api-exhausted-alert';
+    alert.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, #dc2626, #991b1b);
+        color: white;
+        padding: 12px 20px;
+        text-align: center;
+        z-index: 9999;
+        font-size: 0.9rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    `;
+    alert.innerHTML = `
+        <strong>⚠️ API Keys Agotadas</strong><br>
+        <span style="font-size:0.8rem">Las solicitudes mensuales se terminaron. Añade más keys en Configuración o espera al próximo mes.</span>
+        <button onclick="this.parentElement.remove()" style="
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        ">✕</button>
+    `;
+    document.body.prepend(alert);
+}
+
 // --- 4. DOM ELEMENTS ---
 const elements = {
     balance: document.getElementById('current-balance'),
@@ -184,6 +223,8 @@ async function getSmartData(sportKey, retryCount = 0) {
                 return await getSmartData(sportKey, retryCount + 1);
             } else {
                 console.error('❌ Keys exhausted.');
+                // Show visible alert to user
+                showApiExhaustedAlert();
                 return cached ? JSON.parse(cached).events : [];
             }
         }
