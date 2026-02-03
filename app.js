@@ -327,6 +327,8 @@ function processOddsToRecommendations(events, sportName) {
                 minFavOdds = -300; // NBA 68% home favorites - reliable
             } else if (sportName.includes('⚽') || sportName.includes('EPL') || sportName.includes('LaLiga')) {
                 minFavOdds = -180; // Soccer 27% draws - avoid heavy favs
+            } else if (sportName.includes('MLB') || sportName.includes('⚾')) {
+                minFavOdds = -220; // MLB 54.3% home - high variance
             }
 
             const fav = h2h.outcomes.find(o => o.price < maxFavOdds && o.price > minFavOdds);
@@ -517,6 +519,12 @@ function calculateConfidence(pick) {
     // Factor 6: Soccer draws are common - penalize heavy favorites
     if (pick.sport && (pick.sport.includes('EPL') || pick.sport.includes('LaLiga') || pick.sport.includes('Bundesliga') || pick.sport.includes('SerieA'))) {
         if (pick.odds < -200) score -= 5; // Heavy favorites less reliable in soccer
+    }
+
+    // Factor 6b: MLB high variance - penalize heavy favorites and reduce home bonus
+    if (pick.sport && pick.sport.includes('MLB')) {
+        if (pick.odds < -180) score -= 8; // MLB only 54.3% home win rate
+        score -= 2; // Reduce home bonus from +10 to effective +8 for MLB
     }
 
     // --- TEMPORAL FACTORS ---
