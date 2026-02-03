@@ -457,12 +457,12 @@ function calculateConfidence(pick) {
     else if (pick.odds < -200 && pick.odds > -300) score += 10;
     else if (pick.odds < -300) score += 5; // Too heavy favorite
 
-    // Factor 3: Home advantage (+5)
-    if (pick.isHome) score += 5;
+    // Factor 3: Home advantage (+8) - Aumentado tras análisis del 2-Feb-2026
+    if (pick.isHome) score += 8;
 
     // Factor 4: PENALTY for underdogs (positive odds = higher risk = lower confidence)
     if (pick.odds > 0 && pick.odds <= +150) score -= 10; // Light underdog
-    else if (pick.odds > +150 && pick.odds <= +250) score -= 20; // Moderate underdog
+    else if (pick.odds > +150 && pick.odds <= +250) score -= 15; // Moderate underdog (reducido de -20)
     else if (pick.odds > +250 && pick.odds <= +350) score -= 30; // Risky underdog
     else if (pick.odds > +350) score -= 40; // Extreme longshot
 
