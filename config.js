@@ -22,11 +22,10 @@ const DEFAULT_CONFIG = {
     // 2. API-Sports - https://api-sports.io/ (Gratis hasta 100 requests/día)
     // ================================================
     INJURIES_API: {
-        enabled: false,           // Cambia a true cuando tengas una key
-        provider: 'sportsdata',   // 'sportsdata' o 'apisports'
+        enabled: true,            // ✅ HABILITADO con tu key
+        provider: 'apisports',    // 'sportsdata' o 'apisports'
         keys: [
-            // 'TU_SPORTSDATA_KEY_AQUI',
-            // 'TU_APISPORTS_KEY_AQUI',
+            '6a3ec20638426323af402be37fbc58f0', // Tu API-Sports Key (100 req/día)
         ]
     },
 
