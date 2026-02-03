@@ -1,27 +1,67 @@
-// CONFIGURACIÓN AVANZADA
-// Puedes editar este archivo si prefieres no usar el menú de ajustes de la App.
+// ================================================
+// V-STRIKE CONFIGURACIÓN AVANZADA v3.9
+// Puedes editar este archivo para agregar tus API Keys
+// ================================================
 
 const DEFAULT_CONFIG = {
-    // Array de API Keys para rotación automática
-    // Puedes agregar tantas como quieras separadas por coma
+    // ================================================
+    // 🎰 API KEYS - THE ODDS API (Obligatorio)
+    // Obtener gratis en: https://the-odds-api.com/#get-access
+    // Cada cuenta = 500 solicitudes/mes
+    // ================================================
     API_KEYS: [
-        '08affce486b5eca89463bb516279e948', // Default Key
-        // 'tu_segunda_key_aqui',
-        // 'tu_tercera_key_aqui'
+        '08affce486b5eca89463bb516279e948', // Key #1
+        // 'PEGA_TU_SEGUNDA_KEY_AQUI',       // Key #2
+        // 'PEGA_TU_TERCERA_KEY_AQUI',       // Key #3
     ],
 
-    // Tasa Dólar BCV Inicial (Se sobreescribe si la cambias en la App)
+    // ================================================
+    // 🏥 API KEYS - LESIONES (Opcional pero recomendado)
+    // Opciones gratuitas:
+    // 1. SportsData.io - https://sportsdata.io/developers/api-documentation
+    // 2. API-Sports - https://api-sports.io/ (Gratis hasta 100 requests/día)
+    // ================================================
+    INJURIES_API: {
+        enabled: false,           // Cambia a true cuando tengas una key
+        provider: 'sportsdata',   // 'sportsdata' o 'apisports'
+        keys: [
+            // 'TU_SPORTSDATA_KEY_AQUI',
+            // 'TU_APISPORTS_KEY_AQUI',
+        ]
+    },
+
+    // ================================================
+    // 🌦️ API KEY - CLIMA (Opcional, útil para MLB/NFL)
+    // OpenWeatherMap gratis: https://openweathermap.org/api
+    // 1000 llamadas/día gratis
+    // ================================================
+    WEATHER_API: {
+        enabled: false,           // Cambia a true cuando tengas una key
+        provider: 'openweather',
+        key: '',                  // 'TU_OPENWEATHER_KEY_AQUI'
+    },
+
+    // ================================================
+    // ⚙️ CONFIGURACIÓN TÉCNICA
+    // ================================================
+
+    // Tasa Dólar BCV Inicial (Se sobreescribe desde la App)
     INITIAL_BCV: 36.50,
 
-    // Configuración Técnica
-    CACHE_DURATION_MS: 43200000, // 12 Horas
+    // Duración del caché (12 horas por defecto)
+    CACHE_DURATION_MS: 43200000,
+
+    // Moneda principal
     CURRENCY: 'USD',
 
-    // Configuración de Rotación
+    // ================================================
+    // 🔄 ROTACIÓN DE KEYS (No editar manualmente)
+    // ================================================
     ROTATION: {
-        last_reset: Date.now(), // Timestamp del último reset mensual
-        current_index: 0        // Índice de la llave actual
+        last_reset: Date.now(),
+        current_index: 0
     }
 };
 
 window.DEFAULT_CONFIG = DEFAULT_CONFIG;
+
