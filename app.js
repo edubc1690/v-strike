@@ -4,7 +4,7 @@
 
 // --- 1. FORCE UPDATE & CACHE CONTROL ---
 // Detect version change -> Wipe Cache -> Reload
-const CURRENT_VERSION = 'v3.7.0';
+const CURRENT_VERSION = 'v3.8.0';
 if (localStorage.getItem('vstrike_version') !== CURRENT_VERSION) {
     console.log(`✨ New Version ${CURRENT_VERSION} detected. Cleaning up...`);
 
@@ -164,6 +164,114 @@ function showApiExhaustedAlert() {
     `;
     document.body.prepend(alert);
 }
+
+// 📊 WEEKLY EXPORT REMINDER
+function checkWeeklyExportReminder() {
+    const lastExport = localStorage.getItem('vstrike_last_export');
+    const now = Date.now();
+    const oneWeek = 7 * 24 * 60 * 60 * 1000;
+
+    if (!lastExport || (now - parseInt(lastExport)) > oneWeek) {
+        showExportReminder();
+    }
+}
+
+function showExportReminder() {
+    if (document.getElementById('export-reminder')) return;
+
+    const reminder = document.createElement('div');
+    reminder.id = 'export-reminder';
+    reminder.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 12px;
+        z-index: 9998;
+        max-width: 300px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    `;
+    reminder.innerHTML = `
+        <strong>📊 Recordatorio Semanal</strong>
+        <p style="font-size:0.8rem; margin:8px 0">Ha pasado una semana desde tu último backup. Exporta tu historial para no perder datos.</p>
+        <button onclick="exportHistoryToFile(); localStorage.setItem('vstrike_last_export', Date.now()); this.parentElement.remove();" style="
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 10px;
+        ">💾 Exportar</button>
+        <button onclick="localStorage.setItem('vstrike_last_export', Date.now()); this.parentElement.remove();" style="
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+        ">Más tarde</button>
+    `;
+    document.body.appendChild(reminder);
+}
+
+// ⚾ MLB SEASON START WARNING
+function checkMLBSeasonWarning() {
+    const now = new Date();
+    const month = now.getMonth(); // 0-indexed: 3 = April
+    const day = now.getDate();
+
+    // Show warning in first 10 days of April (MLB season start)
+    if (month === 3 && day <= 10) {
+        const dismissed = localStorage.getItem('vstrike_mlb_warning_2026');
+        if (!dismissed) {
+            showMLBWarning();
+        }
+    }
+}
+
+function showMLBWarning() {
+    if (document.getElementById('mlb-warning')) return;
+
+    const warning = document.createElement('div');
+    warning.id = 'mlb-warning';
+    warning.style.cssText = `
+        position: fixed;
+        top: 60px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+        padding: 15px 25px;
+        border-radius: 12px;
+        z-index: 9997;
+        max-width: 400px;
+        text-align: center;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    `;
+    warning.innerHTML = `
+        <strong>⚾ Inicio de Temporada MLB</strong>
+        <p style="font-size:0.8rem; margin:8px 0">Los primeros 10 días de la temporada son MUY volátiles. Los equipos aún están encontrando su forma. <strong>Reduce tus stakes un 50%</strong> o evita MLB hasta que se estabilice.</p>
+        <button onclick="localStorage.setItem('vstrike_mlb_warning_2026', 'true'); this.parentElement.remove();" style="
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+        ">Entendido ⚾</button>
+    `;
+    document.body.appendChild(warning);
+}
+
+// Initialize alerts on load
+setTimeout(() => {
+    checkWeeklyExportReminder();
+    checkMLBSeasonWarning();
+}, 2000);
+
 
 // --- 4. DOM ELEMENTS ---
 const elements = {
@@ -968,6 +1076,37 @@ window.saveSettings = function () {
         alert('⚠️ Error en las llaves. Asegúrate de separarlas por comas o saltos de línea.');
     }
 }
+
+// 🔑 API KEY COUNTER
+function updateKeyCount() {
+    const textarea = document.getElementById('setting-api-keys');
+    const countSpan = document.getElementById('key-count');
+    const requestsSpan = document.getElementById('requests-available');
+
+    if (!textarea || !countSpan || !requestsSpan) return;
+
+    const raw = textarea.value.trim();
+    const keys = raw.split(/[\n,]+/).map(k => k.trim()).filter(k => k.length > 10);
+    const count = Math.max(1, keys.length);
+
+    countSpan.textContent = count;
+    requestsSpan.textContent = count * 500;
+
+    // Visual feedback
+    if (count >= 3) {
+        countSpan.style.color = '#10b981'; // Green
+    } else if (count === 2) {
+        countSpan.style.color = '#f59e0b'; // Yellow
+    } else {
+        countSpan.style.color = '#ef4444'; // Red
+    }
+}
+
+// Initialize key count on load
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(updateKeyCount, 500);
+});
+
 
 // History / Review
 let reviewOffset = -1; // -1 = Yesterday

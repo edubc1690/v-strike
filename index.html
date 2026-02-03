@@ -28,7 +28,7 @@
         <header class="glass-header">
             <div class="logo-area">
                 <span class="logo-icon">⚡</span>
-                <h1>V-STRIKE <span class="version">v3.7</span></h1>
+                <h1>V-STRIKE <span class="version">v3.8</span></h1>
             </div>
             <div class="user-status">
                 <div class="status-dot online"></div>
@@ -154,10 +154,21 @@
                         <a href="https://the-odds-api.com/#get-access" target="_blank"
                             style="font-size:0.75rem; color:var(--accent); text-decoration:none">Obtener GRATIS ↗</a>
                     </div>
+                    <div id="api-key-counter" style="font-size:0.75rem; color:var(--text-muted); margin-bottom:5px;">
+                        🔑 Keys activas: <span id="key-count">1</span> | ~<span id="requests-available">500</span>
+                        solicitudes/mes
+                    </div>
                     <textarea id="setting-api-keys" rows="5" placeholder="Pega tus API Keys aquí, una por línea..."
-                        style="font-family:monospace; font-size:0.8rem; width:100%; border-radius:8px; background:rgba(0,0,0,0.3); border:1px solid #334155; color:white; padding:10px;"></textarea>
+                        style="font-family:monospace; font-size:0.8rem; width:100%; border-radius:8px; background:rgba(0,0,0,0.3); border:1px solid #334155; color:white; padding:10px;"
+                        oninput="updateKeyCount()"></textarea>
                     <small style="color:var(--text-muted)">El sistema rotará automáticamente cuando una llave se agote
                         (Error 429).</small>
+                    <div
+                        style="margin-top:8px; padding:8px; background:rgba(59,130,246,0.1); border-radius:6px; border-left:3px solid #3b82f6;">
+                        <small style="color:#93c5fd;">💡 <strong>Tip:</strong> Crea múltiples cuentas gratis en
+                            the-odds-api.com para tener más solicitudes. Con 3-4 keys tendrás ~2000
+                            solicitudes/mes.</small>
+                    </div>
                 </div>
 
                 <div class="form-group" style="margin-top:1rem">
