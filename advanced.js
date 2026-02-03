@@ -1,7 +1,58 @@
 // ================================================
-// V-STRIKE ADVANCED MODULE v1.0
-// Equipos Trampa, Value, Resultados Automáticos
+// V-STRIKE ADVANCED MODULE v2.0
+// Equipos Trampa, Value, Lesiones, Fatiga, Datos Históricos
 // ================================================
+
+// 📊 HISTORICAL DATABASE
+let HISTORICAL_DATA = null;
+
+// Load historical data on init
+async function loadHistoricalData() {
+    try {
+        const response = await fetch('./data/historical_stats.json');
+        if (response.ok) {
+            HISTORICAL_DATA = await response.json();
+            console.log('📊 Datos históricos cargados:', HISTORICAL_DATA.metadata.last_updated);
+            return HISTORICAL_DATA;
+        }
+    } catch (err) {
+        console.warn('⚠️ Error loading historical data:', err);
+    }
+    return null;
+}
+
+// 🏟️ DIVISIONAL MATCHUP CHECK
+function checkDivisionalMatchup(team1, team2, sport) {
+    if (!HISTORICAL_DATA?.divisional_matchups?.[sport]) return null;
+
+    const divisions = HISTORICAL_DATA.divisional_matchups[sport];
+
+    for (const [divName, teams] of Object.entries(divisions)) {
+        if (teams.includes(team1) && teams.includes(team2)) {
+            return {
+                isDivisional: true,
+                division: divName,
+                adjustment: -3, // Divisional games are more competitive
+                reason: `🏟️ Divisional: ${divName} - Más competitivo`
+            };
+        }
+    }
+
+    return { isDivisional: false, adjustment: 0, reason: null };
+}
+
+// 📈 GET TEAM HISTORICAL STATS
+function getTeamHistoricalStats(teamName, sport) {
+    if (!HISTORICAL_DATA?.team_historical?.[sport]?.[teamName]) return null;
+    return HISTORICAL_DATA.team_historical[sport][teamName];
+}
+
+// ⭐ GET STAR PLAYER IMPACT
+function getStarPlayerImpact(playerName, sport) {
+    if (!HISTORICAL_DATA?.star_player_impact?.[sport]?.[playerName]) return null;
+    return HISTORICAL_DATA.star_player_impact[sport][playerName];
+}
+
 
 // 🚫 EQUIPOS TRAMPA (evitar como favoritos - históricamente no cubren)
 const TRAP_TEAMS = {
@@ -403,6 +454,7 @@ window.VALUE_TEAMS = VALUE_TEAMS;
 window.STAR_PLAYERS = STAR_PLAYERS;
 window.CURRENT_INJURIES = CURRENT_INJURIES;
 window.RECENT_GAMES = RECENT_GAMES;
+window.HISTORICAL_DATA = HISTORICAL_DATA;
 window.getTeamAdjustment = getTeamAdjustment;
 window.checkTeamInjuries = checkTeamInjuries;
 window.checkBackToBack = checkBackToBack;
@@ -411,5 +463,13 @@ window.fetchInjuries = fetchInjuries;
 window.updateInjury = updateInjury;
 window.fetchYesterdayScores = fetchYesterdayScores;
 window.calculateOptimalParleySize = calculateOptimalParleySize;
+window.loadHistoricalData = loadHistoricalData;
+window.checkDivisionalMatchup = checkDivisionalMatchup;
+window.getTeamHistoricalStats = getTeamHistoricalStats;
+window.getStarPlayerImpact = getStarPlayerImpact;
+
+// Auto-load historical data
+loadHistoricalData();
+
 
 
