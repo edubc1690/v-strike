@@ -322,11 +322,11 @@ function processOddsToRecommendations(events, sportName) {
 
             // League-specific adjustments based on historical analysis
             if (sportName.includes('NHL')) {
-                minFavOdds = -250; // NHL favorites less reliable
+                minFavOdds = -225; // NHL only 51.7% home - be conservative
             } else if (sportName.includes('NBA')) {
-                minFavOdds = -300; // NBA reasonably predictable
+                minFavOdds = -300; // NBA 68% home favorites - reliable
             } else if (sportName.includes('⚽') || sportName.includes('EPL') || sportName.includes('LaLiga')) {
-                minFavOdds = -200; // Soccer has many draws/upsets
+                minFavOdds = -180; // Soccer 27% draws - avoid heavy favs
             }
 
             const fav = h2h.outcomes.find(o => o.price < maxFavOdds && o.price > minFavOdds);
@@ -495,8 +495,8 @@ function calculateConfidence(pick) {
     else if (pick.odds < -300 && pick.odds > -400) score += 3; // Risky heavy favorite
     else if (pick.odds <= -400) score -= 5; // Too heavy - bad value
 
-    // Factor 3: Home advantage (+8)
-    if (pick.isHome) score += 8;
+    // Factor 3: Home advantage (+10) - Validado: 68% vs 61.3% en NBA
+    if (pick.isHome) score += 10;
 
     // --- UNDERDOG PENALTIES ---
 
@@ -509,9 +509,9 @@ function calculateConfidence(pick) {
 
     // --- LEAGUE-SPECIFIC ADJUSTMENTS ---
 
-    // Factor 5: NHL favorites underperform (historical data)
-    if (pick.sport && pick.sport.includes('NHL') && pick.odds < -200) {
-        score -= 8; // NHL favorites are less reliable
+    // Factor 5: NHL favorites underperform (51.7% home win rate only)
+    if (pick.sport && pick.sport.includes('NHL') && pick.odds < -180) {
+        score -= 12; // NHL favorites are less reliable
     }
 
     // Factor 6: Soccer draws are common - penalize heavy favorites
